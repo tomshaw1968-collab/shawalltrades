@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Our Projects — Shaw All Trades</title>
+<meta name="description" content="Recent building, roofing and joinery work by Shaw All Trades in Glasgow and Stepps.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;700;800;900&family=Public+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/site.css">
+</head>
+<body>
+
+<header>
+  <div class="wrap header-row">
+    <a class="brand" href="index.html">
+      <span class="brand-mark">Shaw <span>All Trades</span></span>
+      <span class="brand-tag mono">EST. 2020 &middot; GLASGOW</span>
+    </a>
+    <nav>
+      <a href="index.html#services">Services</a>
+      <a href="index.html#about">About</a>
+      <a href="our-projects.html" class="is-active">Our Projects</a>
+      <a href="index.html#contact" class="btn btn-primary">Get a quote</a>
+    </nav>
+  </div>
+</header>
+
+<main id="top">
+
+  <section class="hero">
+    <svg class="hero-grid" viewBox="0 0 1120 300" preserveAspectRatio="none" aria-hidden="true">
+      <defs>
+        <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+          <path d="M40 0H0V40" fill="none" stroke="var(--line)" stroke-width="1"/>
+        </pattern>
+      </defs>
+      <rect width="1120" height="300" fill="url(#grid)"/>
+    </svg>
+    <div class="wrap hero-inner is-narrow">
+      <div>
+        <div class="eyebrow">
+          <span class="eyebrow-dot"></span>
+          <span class="label">Recent work &mdash; Glasgow / Stepps</span>
+        </div>
+        <h1>Our <em>projects.</em></h1>
+        <p class="hero-sub">A look at jobs finished around Glasgow and Stepps &mdash; roofs, extensions and everything in between. Tap a project to see the full set of photos.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="projects">
+    <div class="wrap">
+      <div id="projects-grid" class="projects-grid" aria-live="polite">
+        <div class="projects-empty">
+          <span class="label">Loading&hellip;</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <div class="wrap footer-row">
+    <span class="label mono">SHAW ALL TRADES LTD &middot; SC650672</span>
+    <span class="label">Stepps, Glasgow</span>
+  </div>
+</footer>
+
+<div class="lightbox" id="lightbox" role="dialog" aria-modal="true" aria-labelledby="lightbox-title">
+  <div class="lightbox-head">
+    <h2 class="lightbox-title" id="lightbox-title">Project</h2>
+    <button class="lightbox-close" id="lightbox-close" aria-label="Close">&times;</button>
+  </div>
+  <div class="lightbox-body">
+    <div class="lightbox-grid" id="lightbox-grid"></div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var grid = document.getElementById('projects-grid');
+  var lightbox = document.getElementById('lightbox');
+  var lightboxGrid = document.getElementById('lightbox-grid');
+  var lightboxTitle = document.getElementById('lightbox-title');
+  var closeBtn = document.getElementById('lightbox-close');
+  var lastFocused = null;
+
+  function isVideo(type) { return type === 'video'; }
+
+  function titleCase(slug) {
+    return slug.replace(/[-_]+/g, ' ').replace(/\b\w/g, function (c) { return c.toUpperCase(); });
+  }
+
+  function openLightbox(project) {
+    lastFocused = document.activeElement;
+    lightboxTitle.textContent = project.title || titleCase(project.slug);
+    lightboxGrid.innerHTML = '';
+
+    if (!project.media || !project.media.length) {
+      var empty = document.createElement('p');
+      empty.className = 'label';
+      empty.textContent = 'No photos or videos in this project yet.';
+      lightboxGrid.appendChild(empty);
+    } else {
+      project.media.forEach(function (item) {
+        var wrap = document.createElement('div');
+        wrap.className = 'lightbox-item';
+        var el;
+        if (isVideo(item.type)) {
+          el = document.createElement('video');
+          el.src = item.src;
+          el.controls = true;
+          el.preload = 'metadata';
+        } else {
+          el = document.createElement('img');
+          el.src = item.src;
+          el.alt = (project.title || titleCase(project.slug)) + ' photo';
+          el.loading = 'lazy';
+        }
+        wrap.appendChild(el);
+        lightboxGrid.appendChild(wrap);
+      });
+    }
+
+    lightbox.classList.add('is-open');
+    document.body.style.overflow = 'hidden';
+    closeBtn.focus();
+  }
+
+  function closeLightbox() {
+    lightbox.classList.remove('is-open');
+    document.body.style.overflow = '';
+    lightboxGrid.querySelectorAll('video').forEach(function (v) { v.pause(); });
+    if (lastFocused) lastFocused.focus();
+  }
+
+  closeBtn.addEventListener('click', closeLightbox);
+  lightbox.addEventListener('click', function (e) {
+    if (e.target === lightbox) closeLightbox();
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && lightbox.classList.contains('is-open')) closeLightbox();
+  });
+
+  function renderThumb(project) {
+    var thumbWrap = document.createElement('div');
+    thumbWrap.className = 'project-thumb' + (project.thumbnail ? '' : ' is-empty');
+
+    if (project.thumbnail) {
+      var img = document.createElement('img');
+      img.src = project.thumbnail;
+      img.alt = (project.title || titleCase(project.slug)) + ' thumbnail';
+      img.loading = 'lazy';
+      thumbWrap.appendChild(img);
+    } else {
+      var placeholder = document.createElement('span');
+      placeholder.className = 'label';
+      placeholder.textContent = 'No image yet';
+      thumbWrap.appendChild(placeholder);
+    }
+
+    if (project.media && project.media.length) {
+      var photoCount = project.media.filter(function (m) { return m.type === 'image'; }).length;
+      var videoCount = project.media.filter(function (m) { return m.type === 'video'; }).length;
+      var parts = [];
+      if (photoCount) parts.push(photoCount + (photoCount === 1 ? ' photo' : ' photos'));
+      if (videoCount) parts.push(videoCount + (videoCount === 1 ? ' video' : ' videos'));
+      if (parts.length) {
+        var badge = document.createElement('span');
+        badge.className = 'media-count';
+        badge.textContent = parts.join(' · ');
+        thumbWrap.appendChild(badge);
+      }
+    }
+
+    return thumbWrap;
+  }
+
+  function render(projects) {
+    grid.innerHTML = '';
+
+    if (!projects || !projects.length) {
+      var empty = document.createElement('div');
+      empty.className = 'projects-empty';
+      empty.innerHTML = '<span class="label">No projects yet</span><p>Create a folder under <code>projects/</code> named after the job and add photos or videos &mdash; it\'ll show up here automatically once it\'s uploaded.</p>';
+      grid.appendChild(empty);
+      return;
+    }
+
+    projects.forEach(function (project) {
+      var card = document.createElement('button');
+      card.type = 'button';
+      card.className = 'project-card';
+      card.appendChild(renderThumb(project));
+
+      var meta = document.createElement('div');
+      meta.className = 'project-meta';
+      var title = document.createElement('span');
+      title.className = 'project-title';
+      title.textContent = project.title || titleCase(project.slug);
+      meta.appendChild(title);
+      card.appendChild(meta);
+
+      card.addEventListener('click', function () { openLightbox(project); });
+      grid.appendChild(card);
+    });
+  }
+
+  fetch('assets/projects.json', { cache: 'no-store' })
+    .then(function (res) {
+      if (!res.ok) throw new Error('projects.json not found');
+      return res.json();
+    })
+    .then(render)
+    .catch(function () {
+      grid.innerHTML = '<div class="projects-empty"><span class="label">Couldn\'t load projects</span><p>Make sure <code>assets/projects.json</code> exists &mdash; it\'s generated automatically when you add a project folder and push to GitHub.</p></div>';
+    });
+})();
+</script>
+
+</body>
+</html>
