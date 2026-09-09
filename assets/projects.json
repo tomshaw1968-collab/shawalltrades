@@ -1,0 +1,18 @@
+[
+  {
+    "slug": "example-project",
+    "title": "Example Project",
+    "thumbnail": "projects/example-project/01-sample.svg",
+    "media": [
+      {
+        "type": "image",
+        "src": "projects/example-project/01-sample.svg"
+      },
+      {
+        "type": "image",
+        "src": "projects/example-project/02-sample.svg"
+      }
+    ],
+    "updatedAt": "2026-09-09T17:34:39.450Z"
+  }
+]
