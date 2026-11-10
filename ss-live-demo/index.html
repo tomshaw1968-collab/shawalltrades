@@ -71,6 +71,11 @@ table.lg tr.q td:first-child{box-shadow:inset 3px 0 #1f6b3a}
 .up{display:flex;gap:10px;align-items:center;padding:12px 14px;border-top:1px solid #eef1f5}
 .up:first-of-type{border-top:0}
 .up b{font-size:1rem}.up small{display:block;color:#5a6676;font-size:.82rem}
+.pagebar{background:#fff;padding:10px 12px;border-bottom:1px solid #e3e7ee;position:sticky;top:0;z-index:5;box-shadow:0 2px 6px rgba(20,50,94,.08)}
+.pagebar p{margin:0;font:600 .82rem system-ui,sans-serif;color:#14325e}
+.pills{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.pills button{border:0;border-radius:99px;padding:6px 11px;font:600 .78rem system-ui,sans-serif;background:#eef1f6;color:#14325e;cursor:pointer}
+.pills button[aria-pressed="true"]{background:#14325e;color:#fff}
 .foot{text-align:center;color:#5a6676;font-size:.8rem;padding:10px 12px 22px;line-height:1.5}
 .empty{padding:14px;color:#5a6676;font-style:italic}
 
@@ -142,7 +147,7 @@ table.lg tr.q td:first-child{box-shadow:inset 3px 0 #1f6b3a}
 "use strict";
 /* Scottish Snooker Live: the public results page.
    Shows what the Tour Manager laptops send to the live results store (live/worker.mjs): final scores only,
-   about every 5 minutes. It reads GET <store>/day/<today> every 2 minutes.
+   a few seconds after each save (at most every 3 minutes per event). It reads GET <store>/day/<today> every 2 minutes.
    Address options:  ?demo  a pretend Masters day instead of real results (?demo&speed=fast: an update every 20 seconds)
                      ?view=tv | ?view=phone  choose the layout (otherwise a wide screen gets the TV layout)
                      ?venue=Locarno  the TV shows only that venue's event (when several are on)
@@ -155,7 +160,7 @@ const DEMO = QS.has("demo") || !/^https?:/.test(QS.get("store") || STORE_DEFAULT
 const STORE = (QS.get("store") || STORE_DEFAULT).replace(/\/+$/, "");
 const POLL_MS = 120000;
 const BALL = { "main-tour":"#1f8a3c", masters:"#151515", seniors:"#1e5bd8", womens:"#ec6fa0", billiards:"#f4f1e6", u21:"#f6d32d", u18:"#7b4a1e", u14:"#c8102e", sotf:"#c8102e" };
-const NOTE = "Updated every 5 minutes · final scores only";
+const NOTE = "Updated every few minutes · final scores only";
 const esc = s => String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const $ = id => document.getElementById(id);
 function ukDate(when = new Date()){
@@ -239,7 +244,7 @@ function eventCardPhone(m){
       ${(rounds[v.round]?.matches||[]).map(koMatchPhone).join("")}`;
   }
   const stale = !over && m.sent && Date.now() - Date.parse(m.sent) > 20*60000;
-  return `<div class="ev" style="--c:${colour}"><div class="evh">${over ? `<span class="done-tag">FINISHED</span>` : `<span class="live">LIVE</span>`}
+  return `<div class="ev" id="ev-${esc(e.id)}" style="--c:${colour}"><div class="evh">${over ? `<span class="done-tag">FINISHED</span>` : `<span class="live">LIVE${m.sent ? ` · ${hhmm(m.sent)}` : ""}</span>`}
       <h2><span class="ball" style="--b:${colour}"></span>${esc(e.name)} · ${kindName(e)}</h2>
       <p>${esc(e.venue)} · ${longDay(e.date)}${e.td?` · TD ${esc(e.td)}`:""}</p>
       ${over && !m.knockout && (m.groups||[]).length ? `<p style="margin-top:6px;color:#1f6b3a;font-weight:600">Finished: the qualifiers are in green on the Groups tab.</p>` : ""}
@@ -247,9 +252,16 @@ function eventCardPhone(m){
     <div class="tabs" role="tablist">${tabs.map(([k,l])=>`<button data-ev="${esc(e.id)}" data-tab="${k}" role="tab" aria-selected="${k===v.tab}" type="button">${l}</button>`).join("")}</div>
     ${body}<p class="evfoot">Last update ${hhmm(m.sent)}</p></div>`;
 }
+// A short name for each event's button: the venue, or the event's name when two are at the same venue
+const pillName = (m, all) => { const v = String(m.event.venue||"").split(",")[0].trim(); return all.filter(x=>String(x.event.venue||"").split(",")[0].trim()===v).length>1 || !v ? `${m.event.name}${v ? " · " + v : ""}` : v; };
+let picked = null;
 function renderPhone(){
   const latest = events.map(m=>m.sent).filter(Boolean).sort().pop();
+  if (!events.some(m=>m.event.id===picked)) picked = events[0]?.event.id || null;
+  const bar = lastOk ? `<div class="pagebar"><p>Page updated ${hhmm(lastOk)}${events.length>1 ? ` · ${events.length} events on today` : ""}</p>
+    ${events.length>1 ? `<div class="pills">${events.map(m=>`<button type="button" data-jump="${esc(m.event.id)}" aria-pressed="${m.event.id===picked}">${esc(pillName(m, events))}</button>`).join("")}</div>` : ""}</div>` : "";
   $("phone").innerHTML = `<div class="top"><img src="${LOGO}" alt=""><div><b>Scottish Snooker Live</b><small>Results through the day</small></div></div>
+    ${bar}
     ${lastErr ? `<p class="stale" style="margin:10px">${esc(lastErr)}</p>` : ""}
     ${events.length ? events.map(eventCardPhone).join("") : lastOk ? `<div class="ev"><p class="empty" style="font-style:normal">No Scottish Snooker events have sent results today. On event days, results appear here as the day goes on.</p></div>` : `<p class="empty">Loading…</p>`}
     <div class="foot"><b>${NOTE}</b><br>${latest ? `Last update ${hhmm(latest)} · ` : ""}the page refreshes by itself
@@ -270,7 +282,7 @@ function renderTV(){
   if (Date.now() - tvTurn > 30000){ tvIndex++; tvTurn = Date.now(); }     // several events: take turns, 30 seconds each
   const m = list[tvIndex % list.length], e = m.event, colour = BALL[e.comp] || "#14325e", over = e.stage==="finished";
   const head = `<div class="hd"><img src="${LOGO}" alt=""><div><h1><span class="ball" style="--b:${colour}"></span>${esc(e.name)} · ${kindName(e)}</h1>
-    <p>${esc(e.venue)} · ${longDay(e.date)} · Scottish Snooker Live${list.length>1 ? ` · ${(tvIndex % list.length)+1} of ${list.length}` : ""}</p></div>${over ? `<span class="done-tag">FINISHED</span>` : `<span class="live">LIVE</span>`}</div>`;
+    <p>${esc(e.venue)} · ${longDay(e.date)} · Scottish Snooker Live${list.length>1 ? ` · ${(tvIndex % list.length)+1} of ${list.length}` : ""}</p></div>${over ? `<span class="done-tag">FINISHED</span>` : `<span class="live">LIVE${m.sent ? ` · ${hhmm(m.sent)}` : ""}</span>`}</div>`;
   const foot = `<div class="note5"><b>${NOTE}</b> · last update ${hhmm(m.sent)}${DEMO ? ` · <span style="opacity:.7">demo: pretend players and results</span>` : ""}</div>`;
   const hb = m.breaks?.[0] ? `<div class="hb">Highest break today<b class="nar">${m.breaks[0].value}</b>${esc(m.breaks[0].player)}${badge(m.breaks[0].value)}</div>` : "";
   const tablesCard = n => `<div class="card"><h2 class="nar">On the tables</h2>${(m.tables||[]).filter(t=>t.status==="play").slice(0,n).map(t=>`<div class="ttb"><span class="tno">${esc(t.label)}</span><div class="m"><b>${esc(t.a)}</b><br><b>${esc(t.b)}</b><small>${esc(t.stage)}</small></div><span class="ip">In play</span></div>`).join("")
@@ -406,6 +418,9 @@ function wantTV(){ const v = QS.get("view"); if (v==="tv") return true; if (v===
 function fitTV(){ const s = Math.min(innerWidth/1920, innerHeight/1080), tv = $("tv"); tv.style.transform = `scale(${s})`; tv.style.left = ((innerWidth-1920*s)/2)+"px"; tv.style.top = ((innerHeight-1080*s)/2)+"px"; }
 function render(){ const isTV = wantTV(); $("phone").hidden = isTV; $("tvbox").hidden = !isTV; if (isTV){ renderTV(); fitTV(); } else renderPhone(); }
 $("phone").addEventListener("click", e=>{
+  const j = e.target.closest("button[data-jump]");
+  if (j){ picked = j.dataset.jump; render(); const el = document.getElementById("ev-" + picked), bar = document.querySelector(".pagebar");
+    if (el) scrollTo({ top: el.getBoundingClientRect().top + scrollY - (bar ? bar.offsetHeight : 0) - 8, behavior:"smooth" }); return; }
   const t = e.target.closest("button"); if (!t || !t.dataset.ev) return; const v = view[t.dataset.ev]; if (!v) return;
   if (t.dataset.tab){ v.tab = t.dataset.tab; v.chosen = true; if (v.tab==="ko") v.roundChosen = false; }
   if (t.dataset.round){ v.round = +t.dataset.round; v.roundChosen = true; }
