@@ -147,7 +147,8 @@ table.lg tr.q td:first-child{box-shadow:inset 3px 0 #1f6b3a}
 "use strict";
 /* Scottish Snooker Live: the public results page.
    Shows what the Tour Manager laptops send to the live results store (live/worker.mjs): final scores only,
-   a few seconds after each save (at most every 3 minutes per event). It reads GET <store>/day/<today> every 2 minutes.
+   a few seconds after each save (at most every 3 minutes per event). It reads GET <store>/day/<today> every 30 seconds
+   (with ?b=<20-second slot>, so the store's one-minute edge cache gives a copy at most 20 seconds old).
    Address options:  ?demo  a pretend Masters day instead of real results (?demo&speed=fast: an update every 20 seconds)
                      ?view=tv | ?view=phone  choose the layout (otherwise a wide screen gets the TV layout)
                      ?venue=Locarno  the TV shows only that venue's event (when several are on)
@@ -158,7 +159,8 @@ const STORE_DEFAULT = "https://snooker-live.tom-shaw1968.workers.dev";
 const QS = new URLSearchParams(location.search);
 const DEMO = QS.has("demo") || !/^https?:/.test(QS.get("store") || STORE_DEFAULT);
 const STORE = (QS.get("store") || STORE_DEFAULT).replace(/\/+$/, "");
-const POLL_MS = 120000;
+const POLL_MS = 30000;                          // check for news every 30 seconds
+const SLOT_MS = 20000;                          // a new address every 20 seconds, so the store's cached copy is at most that old
 const BALL = { "main-tour":"#1f8a3c", masters:"#151515", seniors:"#1e5bd8", womens:"#ec6fa0", billiards:"#f4f1e6", u21:"#f6d32d", u18:"#7b4a1e", u14:"#c8102e", sotf:"#c8102e" };
 const NOTE = "Updated every few minutes · final scores only";
 const esc = s => String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
@@ -174,7 +176,9 @@ const surname = n => { const w = String(n).trim().split(/\s+/); return (w.length
 const bySurname = l => (l||[]).slice().sort((a,b)=>surname(a).localeCompare(surname(b),"en-GB"));
 const scoreText = r => r.wo ? "w/o" : `${r.sa}–${r.sb}`;
 const finalText = w => w && w.score ? ` ${w.score}` : "";
-const kindName = e => e.kind==="qualifying" ? "Qualifying" : e.kind==="finals" ? "Finals" : e.stage==="knockout"||e.stage==="finished" ? "Knockout" : "Groups";
+const kindName0 = e => e.kind==="qualifying" ? "Qualifying" : e.kind==="finals" ? "Finals" : e.stage==="knockout"||e.stage==="finished" ? "Knockout" : "Groups";
+// "Masters Event 2 · Knockout", but just "Main Tour qualifying" when the name already says what kind it is
+const evTitle = e => { const k = kindName0(e), n = String(e.name||""); return n.toLowerCase().includes(k.toLowerCase().replace(/s$/,"")) ? esc(n) : `${esc(n)} · ${k}`; };
 
 /* ---------- getting the day's events ---------- */
 let events = [], lastOk = null, lastErr = "", fetching = false;
@@ -182,7 +186,7 @@ async function load(){
   if (DEMO){ events = [demoMessage(Date.now())]; lastOk = Date.now(); lastErr = ""; return; }
   if (fetching) return; fetching = true;
   try{
-    const r = await fetch(`${STORE}/day/${ukDate()}`, { cache:"no-store" });
+    const r = await fetch(`${STORE}/day/${ukDate()}?b=${Math.floor(Date.now()/SLOT_MS)}`, { cache:"no-store" });
     const d = await r.json(); if (!d.ok) throw new Error(d.error || "no results");
     events = d.events || []; lastOk = Date.now(); lastErr = "";
   }catch(e){ lastErr = "Can't reach the results just now. Trying again shortly."; }
@@ -245,7 +249,7 @@ function eventCardPhone(m){
   }
   const stale = !over && m.sent && Date.now() - Date.parse(m.sent) > 20*60000;
   return `<div class="ev" id="ev-${esc(e.id)}" style="--c:${colour}"><div class="evh">${over ? `<span class="done-tag">FINISHED</span>` : `<span class="live">LIVE${m.sent ? ` · ${hhmm(m.sent)}` : ""}</span>`}
-      <h2><span class="ball" style="--b:${colour}"></span>${esc(e.name)} · ${kindName(e)}</h2>
+      <h2><span class="ball" style="--b:${colour}"></span>${evTitle(e)}</h2>
       <p>${esc(e.venue)} · ${longDay(e.date)}${e.td?` · TD ${esc(e.td)}`:""}</p>
       ${over && !m.knockout && (m.groups||[]).length ? `<p style="margin-top:6px;color:#1f6b3a;font-weight:600">Finished: the qualifiers are in green on the Groups tab.</p>` : ""}
       ${stale ? `<p class="stale">Waiting for the venue's next update (last ${hhmm(m.sent)}).</p>` : ""}</div>
@@ -281,7 +285,7 @@ function renderTV(){
   }
   if (Date.now() - tvTurn > 30000){ tvIndex++; tvTurn = Date.now(); }     // several events: take turns, 30 seconds each
   const m = list[tvIndex % list.length], e = m.event, colour = BALL[e.comp] || "#14325e", over = e.stage==="finished";
-  const head = `<div class="hd"><img src="${LOGO}" alt=""><div><h1><span class="ball" style="--b:${colour}"></span>${esc(e.name)} · ${kindName(e)}</h1>
+  const head = `<div class="hd"><img src="${LOGO}" alt=""><div><h1><span class="ball" style="--b:${colour}"></span>${evTitle(e)}</h1>
     <p>${esc(e.venue)} · ${longDay(e.date)} · Scottish Snooker Live${list.length>1 ? ` · ${(tvIndex % list.length)+1} of ${list.length}` : ""}</p></div>${over ? `<span class="done-tag">FINISHED</span>` : `<span class="live">LIVE${m.sent ? ` · ${hhmm(m.sent)}` : ""}</span>`}</div>`;
   const foot = `<div class="note5"><b>${NOTE}</b> · last update ${hhmm(m.sent)}${DEMO ? ` · <span style="opacity:.7">demo: pretend players and results</span>` : ""}</div>`;
   const hb = m.breaks?.[0] ? `<div class="hb">Highest break today<b class="nar">${m.breaks[0].value}</b>${esc(m.breaks[0].player)}${badge(m.breaks[0].value)}</div>` : "";
